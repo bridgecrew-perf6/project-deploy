@@ -1,0 +1,101 @@
+---
+- hosts: all
+  remote_user: "{{ default_user }}"
+  become: true
+  vars_files:
+    - vars/default.yml
+
+  tasks:
+    - name: Install aptitude using apt
+      apt: name=aptitude state=latest update_cache=yes force_apt_get=yes
+
+    - name: Install required system packages
+      apt: name={{ item }} state=latest update_cache=yes
+      loop: [ 'apt-transport-https', 'ca-certificates', 'curl', 'software-properties-common' ]
+
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker Repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu bionic stable
+        state: present
+
+    - name: Update apt and install docker-ce
+      apt: update_cache=yes name=docker-ce state=latest
+
+    - name: Install required system packages
+      apt: name={{ item }} state=latest update_cache=yes
+      loop: [ 'curl']
+
+    - name: Create docker network
+      docker_network:
+        name: "{{ docker_network }}"
+        state: present
+    
+    - name: Create mysql container
+      docker_container:
+        name: "{{ mysql_container_name }}"
+        image: "{{ mysql_container_image }}"
+        env:
+          MYSQL_USER: "{{ mysql_container_username }}"
+          MYSQL_PASSWORD: "{{ mysql_container_password }}"
+          MYSQL_ROOT_PASSWORD: "{{ mysql_container_root_password }}"
+          MYSQL_DATABASE: "{{ mysql_container_database }}"
+        ports:
+          - "3306:3306"
+        networks:
+          - name: "{{ docker_network }}"
+
+    - name: Wait for mysql to be available
+      shell: docker run --rm --link mysqldb mysql:8 sh -c 'mysql -h "{{ mysql_container_name }}" -u "{{  mysql_container_username }}" -p{{mysql_container_password}} || true'
+      register: result
+      until: result.stderr.find("Can't connect to MySQL") == -1
+      retries: 10
+      delay: 3
+
+    - name: Pull default Docker image
+      docker_image:
+        name: "{{ movie_infographic_api_image }}"
+        source: pull
+
+    - name: Create movie infographic api container
+      docker_container:
+        name: "{{ movie_infographic_api_name }}"
+        image: "{{ movie_infographic_api_image }}"
+        volumes:
+          - "{{playbook_dir}}/config/project-movie-infographic-api/application.properties:/application.properties"
+        ports:
+          - "8082:8082"
+        networks:
+          - name: "{{ docker_network }}"
+
+    - name: Pull default Docker image
+      docker_image:
+        name: "{{ movie_fetcher_image }}"
+        source: pull
+
+    - name: Create movie fetcher container
+      docker_container:
+        name: "{{ movie_fetcher_name }}"
+        image: "{{ movie_fetcher_image }}"
+        volumes:
+          - "{{playbook_dir}}/config/project-movie-fetcher/application.properties:/application.properties"
+        ports:
+          - "8081:8081"
+        networks:
+          - name: "{{ docker_network }}"
+
+    - name: Pull default Docker image
+      docker_image:
+        name: "{{ movie_app_image }}"
+        source: pull
+
+    - name: Create movie app container
+      docker_container:
+        name: "{{ movie_app_name }}"
+        image: "{{ movie_app_image }}"
+        ports:
+          - "9090:8080"

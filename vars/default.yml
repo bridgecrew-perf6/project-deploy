@@ -1,0 +1,21 @@
+---
+# ansible defaults
+default_user: lfilipevm
+# docker
+docker_network: moviefetchernetwork
+# Movie infographic API
+movie_infographic_api_name: project-movie-infographic-api
+movie_infographic_api_image: pdisec2122/project-movie-infographic-api:latest
+# Movie infographic API - Mysql
+mysql_container_name: mysqldb
+mysql_container_image: mysql:8
+mysql_container_username: movie_app
+mysql_container_password: 12345YYyy
+mysql_container_root_password: root
+mysql_container_database: bootdb
+# Movie fetcher
+movie_fetcher_name: project-movie-fetcher
+movie_fetcher_image: pdisec2122/project-movie-fetcher:latest
+# Movie app
+movie_app_name: project-movie-app
+movie_app_image: pdisec2122/project-movie-app:latest
